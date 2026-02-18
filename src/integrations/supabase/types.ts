@@ -230,6 +230,7 @@ export type Database = {
           api_key_encrypted: string | null
           created_at: string
           id: string
+          owner: string | null
           provider: string
           status: string
           updated_at: string
@@ -239,6 +240,7 @@ export type Database = {
           api_key_encrypted?: string | null
           created_at?: string
           id?: string
+          owner?: string | null
           provider: string
           status?: string
           updated_at?: string
@@ -248,6 +250,7 @@ export type Database = {
           api_key_encrypted?: string | null
           created_at?: string
           id?: string
+          owner?: string | null
           provider?: string
           status?: string
           updated_at?: string
@@ -266,21 +269,24 @@ export type Database = {
       invite_events: {
         Row: {
           created_at: string
-          event_type: Database["public"]["Enums"]["invite_event_type"]
+          event_data: Json | null
+          event_type: string
           id: string
           invite_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          event_type: Database["public"]["Enums"]["invite_event_type"]
+          event_data?: Json | null
+          event_type: string
           id?: string
           invite_id: string
           user_id: string
         }
         Update: {
           created_at?: string
-          event_type?: Database["public"]["Enums"]["invite_event_type"]
+          event_data?: Json | null
+          event_type?: string
           id?: string
           invite_id?: string
           user_id?: string
@@ -310,6 +316,10 @@ export type Database = {
           expires_at: string | null
           id: string
           invite_code: string
+          source: string | null
+          status: string | null
+          type: string | null
+          used_at: string | null
         }
         Insert: {
           class_id: string
@@ -318,6 +328,10 @@ export type Database = {
           expires_at?: string | null
           id?: string
           invite_code: string
+          source?: string | null
+          status?: string | null
+          type?: string | null
+          used_at?: string | null
         }
         Update: {
           class_id?: string
@@ -326,6 +340,10 @@ export type Database = {
           expires_at?: string | null
           id?: string
           invite_code?: string
+          source?: string | null
+          status?: string | null
+          type?: string | null
+          used_at?: string | null
         }
         Relationships: [
           {
@@ -438,7 +456,6 @@ export type Database = {
     }
     Enums: {
       class_role: "teacher" | "student"
-      invite_event_type: "used" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -567,7 +584,6 @@ export const Constants = {
   public: {
     Enums: {
       class_role: ["teacher", "student"],
-      invite_event_type: ["used", "expired"],
     },
   },
 } as const
