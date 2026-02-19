@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { path: "/todo", label: "To-do", icon: CheckSquare },
   { path: "/archived", label: "Archived", icon: Archive },
   { path: "/settings", label: "Settings", icon: Settings },
-  { path: "/integrations", label: "Integrations", icon: Plug },
+  
 ];
 
 const Header = ({ onCreateClass, onJoinClass }: HeaderProps) => {
@@ -96,9 +96,6 @@ const Header = ({ onCreateClass, onJoinClass }: HeaderProps) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/settings")}>
                 <Settings className="mr-2 h-4 w-4" /> Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/integrations")}>
-                <Plug className="mr-2 h-4 w-4" /> Integrations
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut} className="text-destructive">

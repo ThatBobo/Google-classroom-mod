@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Copy, Send, Users, ClipboardList, Plus, FileText, Calendar } from "lucide-react";
+import { ArrowLeft, Copy, Send, Users, ClipboardList, Plus, FileText, Calendar, Plug } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -144,7 +144,10 @@ const ClassDetail = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="font-display text-lg font-semibold text-foreground">{classData.name}</h1>
+        <h1 className="font-display text-lg font-semibold text-foreground flex-1">{classData.name}</h1>
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/class/${id}/integrations`)} className="gap-1.5">
+          <Plug className="h-4 w-4" /> Integrations
+        </Button>
       </div>
 
       {/* Banner */}
