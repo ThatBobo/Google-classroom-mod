@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, Coins } from "lucide-react";
+import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface Integration {
@@ -37,7 +37,7 @@ const Integrations = () => {
   const [apiKey, setApiKey] = useState("");
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
-  const [credits, setCredits] = useState<number>(0);
+  
 
   const isNew = searchParams.get("new") === "true";
 
@@ -54,27 +54,13 @@ const Integrations = () => {
     setLoading(false);
   };
 
-  const fetchCredits = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("credits")
-      .eq("user_id", user.id)
-      .single();
-    setCredits(data?.credits ?? 0);
-  };
 
   useEffect(() => {
     fetchIntegrations();
-    fetchCredits();
   }, [user, classId]);
 
   const handleAdd = async () => {
     if (!provider.trim() || !user || !classId) return;
-    if (credits < 1) {
-      toast.error("Not enough credits to add an integration");
-      return;
-    }
     setAdding(true);
 
     // Determine URL: Opix has no URL
@@ -95,19 +81,7 @@ const Integrations = () => {
       return;
     }
 
-    // Deduct 1 credit
-    const { error: creditError } = await supabase
-      .from("profiles")
-      .update({ credits: credits - 1 })
-      .eq("user_id", user.id);
-
-    if (creditError) {
-      toast.error("Integration added but failed to deduct credit");
-    } else {
-      setCredits((c) => c - 1);
-    }
-
-    toast.success("Integration added! 1 credit used.");
+    toast.success("Integration added!");
     setProvider("");
     setApiKey("");
     setUrl("");
@@ -146,9 +120,6 @@ const Integrations = () => {
           <Plug className="h-5 w-5 text-primary" /> Integrations
         </h1>
         <div className="ml-auto flex items-center gap-3">
-          <Badge variant="outline" className="gap-1">
-            <Coins className="h-3.5 w-3.5" /> {credits} credits
-          </Badge>
           {!isNew && (
             <Button size="sm" onClick={() => setSearchParams({ new: "true" })}>
               <Plus className="mr-1 h-4 w-4" /> New
@@ -162,7 +133,6 @@ const Integrations = () => {
           /* New integration form */
           <Card className="mx-auto max-w-lg p-6 space-y-5">
             <h2 className="font-display text-xl font-bold text-foreground">Add Integration</h2>
-            <p className="text-sm text-muted-foreground">This will use 1 credit. You have {credits} remaining.</p>
             <div className="space-y-2">
               <Label htmlFor="provider">Provider name *</Label>
               <Input
@@ -197,8 +167,8 @@ const Integrations = () => {
               <Button variant="ghost" onClick={() => setSearchParams({})}>
                 Cancel
               </Button>
-              <Button onClick={handleAdd} disabled={!provider.trim() || adding || credits < 1}>
-                {adding ? "Adding..." : "Add Integration (1 credit)"}
+              <Button onClick={handleAdd} disabled={!provider.trim() || adding}>
+                {adding ? "Adding..." : "Add Integration"}
               </Button>
             </div>
           </Card>
