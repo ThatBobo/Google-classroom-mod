@@ -228,35 +228,48 @@ export type Database = {
       integrations: {
         Row: {
           api_key_encrypted: string | null
+          class_id: string | null
           created_at: string
           id: string
           owner: string | null
           provider: string
           status: string
           updated_at: string
+          url: string | null
           user_id: string
         }
         Insert: {
           api_key_encrypted?: string | null
+          class_id?: string | null
           created_at?: string
           id?: string
           owner?: string | null
           provider: string
           status?: string
           updated_at?: string
+          url?: string | null
           user_id: string
         }
         Update: {
           api_key_encrypted?: string | null
+          class_id?: string | null
           created_at?: string
           id?: string
           owner?: string | null
           provider?: string
           status?: string
           updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "integrations_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "integrations_user_id_fkey"
             columns: ["user_id"]
@@ -366,6 +379,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          credits: number
           display_name: string
           id: string
           role: string
@@ -375,6 +389,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          credits?: number
           display_name?: string
           id?: string
           role?: string
@@ -384,6 +399,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          credits?: number
           display_name?: string
           id?: string
           role?: string

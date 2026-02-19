@@ -36,7 +36,7 @@ const App = () => (
             <Route path="/todo" element={<P><Todo /></P>} />
             <Route path="/archived" element={<P><Archived /></P>} />
             <Route path="/settings" element={<P><Settings /></P>} />
-            <Route path="/integrations" element={<P><Integrations /></P>} />
+            <Route path="/class/:id/integrations" element={<P><Integrations /></P>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
