@@ -26,6 +26,37 @@ interface Integration {
   created_at: string;
 }
 
+// Predefined URLs for known providers (Opix has no URL)
+const PROVIDER_URLS: Record<string, string> = {
+  supabase: "https://supabase.com",
+  github: "https://github.com",
+  lovable: "https://lovable.dev",
+  slack: "https://slack.com",
+  zoom: "https://zoom.us",
+  notion: "https://notion.so",
+  discord: "https://discord.com",
+  google: "https://google.com",
+  figma: "https://figma.com",
+  linear: "https://linear.app",
+  jira: "https://atlassian.net",
+  trello: "https://trello.com",
+  asana: "https://asana.com",
+  vercel: "https://vercel.com",
+  netlify: "https://netlify.com",
+  stripe: "https://stripe.com",
+  twilio: "https://twilio.com",
+  sendgrid: "https://sendgrid.com",
+  openai: "https://openai.com",
+  anthropic: "https://anthropic.com",
+  opix: "https://opix.io",
+};
+
+const getProviderUrl = (name: string): string | null => {
+  const key = name.trim().toLowerCase();
+  if (key === "opix") return null; // Opix has no URL shown
+  return PROVIDER_URLS[key] ?? null;
+};
+
 const Integrations = () => {
   const { id: classId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,7 +66,6 @@ const Integrations = () => {
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
   
 
@@ -63,9 +93,7 @@ const Integrations = () => {
     if (!provider.trim() || !user || !classId) return;
     setAdding(true);
 
-    // Determine URL: Opix has no URL
-    const isOpix = provider.trim().toLowerCase() === "opix";
-    const integrationUrl = isOpix ? null : url.trim() || null;
+    const integrationUrl = getProviderUrl(provider);
 
     const { error } = await supabase.from("integrations").insert({
       user_id: user.id,
@@ -84,7 +112,6 @@ const Integrations = () => {
     toast.success("Integration added!");
     setProvider("");
     setApiKey("");
-    setUrl("");
     setSearchParams({}); // Remove ?new=true
     fetchIntegrations();
     setAdding(false);
@@ -142,15 +169,12 @@ const Integrations = () => {
                 placeholder="e.g. Opix, Slack, Zoom"
               />
             </div>
-            {provider.trim().toLowerCase() !== "opix" && (
+            {provider.trim() && getProviderUrl(provider) && (
               <div className="space-y-2">
-                <Label htmlFor="url">Integration URL</Label>
-                <Input
-                  id="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://..."
-                />
+                <Label>Integration URL (auto-detected)</Label>
+                <p className="text-sm text-muted-foreground rounded-md border border-border bg-muted px-3 py-2">
+                  {getProviderUrl(provider)}
+                </p>
               </div>
             )}
             <div className="space-y-2">
