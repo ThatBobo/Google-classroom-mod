@@ -48,12 +48,12 @@ const PROVIDER_URLS: Record<string, string> = {
   sendgrid: "https://sendgrid.com",
   openai: "https://openai.com",
   anthropic: "https://anthropic.com",
-  opix: "https://opix.io",
+  opix: "https://opix-io.lovable.app",
 };
 
 const getProviderUrl = (name: string): string | null => {
   const key = name.trim().toLowerCase();
-  if (key === "opix") return null; // Opix has no URL shown
+  if (PROVIDER_URLS[key]) return PROVIDER_URLS[key];
   return PROVIDER_URLS[key] ?? null;
 };
 
