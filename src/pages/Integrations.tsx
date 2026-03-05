@@ -38,6 +38,56 @@ interface IntegrationLog {
   created_at: string;
 }
 
+type CredentialField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  required: boolean;
+  type?: "text" | "password";
+  validate?: (value: string) => string | null;
+};
+
+const PROVIDER_CREDENTIALS: Record<string, CredentialField[]> = {
+  supabase: [
+    { key: "project_url", label: "Project URL", placeholder: "https://xxxxx.supabase.co", required: true, type: "text",
+      validate: (v) => v.match(/^https:\/\/.*\.supabase\.co\/?$/) ? null : "Must be a valid Supabase project URL (https://xxx.supabase.co)" },
+    { key: "anon_key", label: "Anon Key", placeholder: "eyJhbGciOiJIUzI1NiIs...", required: true, type: "password",
+      validate: (v) => v.startsWith("eyJ") && v.length > 30 ? null : "Must be a valid JWT anon key" },
+  ],
+  opix: [
+    { key: "api_key", label: "API Key", placeholder: "opx_xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("opx_") && v.length >= 16 ? null : "Must start with opx_ and be at least 16 characters" },
+  ],
+  github: [
+    { key: "access_token", label: "Personal Access Token", placeholder: "ghp_xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("ghp_") || v.startsWith("github_pat_") ? null : "Must be a valid GitHub token (ghp_ or github_pat_)" },
+  ],
+  openai: [
+    { key: "api_key", label: "API Key", placeholder: "sk-xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("sk-") && v.length > 20 ? null : "Must be a valid OpenAI API key (sk-...)" },
+  ],
+  stripe: [
+    { key: "api_key", label: "Secret Key", placeholder: "sk_live_xxxxxxxx or sk_test_xxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("sk_") ? null : "Must be a valid Stripe secret key (sk_...)" },
+  ],
+  discord: [
+    { key: "bot_token", label: "Bot Token", placeholder: "Enter bot token", required: true, type: "password" },
+    { key: "webhook_url", label: "Webhook URL (optional)", placeholder: "https://discord.com/api/webhooks/...", required: false, type: "text" },
+  ],
+  slack: [
+    { key: "bot_token", label: "Bot Token", placeholder: "xoxb-xxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("xoxb-") ? null : "Must be a valid Slack bot token (xoxb-...)" },
+    { key: "webhook_url", label: "Webhook URL (optional)", placeholder: "https://hooks.slack.com/services/...", required: false, type: "text" },
+  ],
+};
+
+const getProviderCredentials = (provider: string): CredentialField[] => {
+  const key = provider.trim().toLowerCase();
+  return PROVIDER_CREDENTIALS[key] ?? [
+    { key: "api_key", label: "API Key (optional)", placeholder: "Enter API key or token", required: false, type: "password" },
+  ];
+};
+
 const PROVIDER_URLS: Record<string, string> = {
   supabase: "https://supabase.com",
   github: "https://github.com",
