@@ -366,56 +366,52 @@ const Integrations = () => {
                 </p>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">
-                API Key {isOpixProvider(provider) ? "(required — opx_...)" : "(optional)"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={isOpixProvider(provider) ? "opx_xxxxxxxxxxxxxxxx" : "Enter API key"}
-                  className={
-                    isOpixProvider(provider) && apiKey.trim()
-                      ? keyValid === true
-                        ? "border-green-500 pr-10"
-                        : keyValid === false
-                        ? "border-destructive pr-10"
-                        : "pr-10"
-                      : ""
-                  }
-                />
-                {isOpixProvider(provider) && apiKey.trim() && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {validating ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : keyValid ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    )}
-                  </span>
+            {provider.trim() && credentialFields.map((field) => (
+              <div key={field.key} className="space-y-2">
+                <Label htmlFor={field.key}>
+                  {field.label} {field.required && "*"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id={field.key}
+                    type={field.type ?? "text"}
+                    value={credentials[field.key] ?? ""}
+                    onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    className={
+                      (credentials[field.key] ?? "").trim() && field.validate
+                        ? fieldErrors[field.key] === null
+                          ? "border-primary pr-10"
+                          : fieldErrors[field.key]
+                          ? "border-destructive pr-10"
+                          : "pr-10"
+                        : ""
+                    }
+                  />
+                  {(credentials[field.key] ?? "").trim() && field.validate && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {fieldErrors[field.key] === null ? (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      ) : fieldErrors[field.key] ? (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </span>
+                  )}
+                </div>
+                {fieldErrors[field.key] && (
+                  <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
                 )}
               </div>
-              {isOpixProvider(provider) && apiKey.trim() && keyValid === false && (
-                <p className="text-xs text-destructive">
-                  Key must start with opx_ and be at least 16 characters
-                </p>
-              )}
-            </div>
+            ))}
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => { setSearchParams({}); setKeyValid(null); }}>
+              <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
                 Cancel
               </Button>
               <Button
                 onClick={handleAdd}
-                disabled={
-                  !provider.trim() ||
-                  adding ||
-                  (isOpixProvider(provider) && keyValid !== true)
-                }
+                disabled={!provider.trim() || adding || !allRequiredValid()}
               >
                 {adding ? "Adding..." : "Add Integration"}
               </Button>
