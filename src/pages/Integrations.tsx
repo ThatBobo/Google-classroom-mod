@@ -38,6 +38,56 @@ interface IntegrationLog {
   created_at: string;
 }
 
+type CredentialField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  required: boolean;
+  type?: "text" | "password";
+  validate?: (value: string) => string | null;
+};
+
+const PROVIDER_CREDENTIALS: Record<string, CredentialField[]> = {
+  supabase: [
+    { key: "project_url", label: "Project URL", placeholder: "https://xxxxx.supabase.co", required: true, type: "text",
+      validate: (v) => v.match(/^https:\/\/.*\.supabase\.co\/?$/) ? null : "Must be a valid Supabase project URL (https://xxx.supabase.co)" },
+    { key: "anon_key", label: "Anon Key", placeholder: "eyJhbGciOiJIUzI1NiIs...", required: true, type: "password",
+      validate: (v) => v.startsWith("eyJ") && v.length > 30 ? null : "Must be a valid JWT anon key" },
+  ],
+  opix: [
+    { key: "api_key", label: "API Key", placeholder: "opx_xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("opx_") && v.length >= 16 ? null : "Must start with opx_ and be at least 16 characters" },
+  ],
+  github: [
+    { key: "access_token", label: "Personal Access Token", placeholder: "ghp_xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("ghp_") || v.startsWith("github_pat_") ? null : "Must be a valid GitHub token (ghp_ or github_pat_)" },
+  ],
+  openai: [
+    { key: "api_key", label: "API Key", placeholder: "sk-xxxxxxxxxxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("sk-") && v.length > 20 ? null : "Must be a valid OpenAI API key (sk-...)" },
+  ],
+  stripe: [
+    { key: "api_key", label: "Secret Key", placeholder: "sk_live_xxxxxxxx or sk_test_xxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("sk_") ? null : "Must be a valid Stripe secret key (sk_...)" },
+  ],
+  discord: [
+    { key: "bot_token", label: "Bot Token", placeholder: "Enter bot token", required: true, type: "password" },
+    { key: "webhook_url", label: "Webhook URL (optional)", placeholder: "https://discord.com/api/webhooks/...", required: false, type: "text" },
+  ],
+  slack: [
+    { key: "bot_token", label: "Bot Token", placeholder: "xoxb-xxxxxxxx", required: true, type: "password",
+      validate: (v) => v.startsWith("xoxb-") ? null : "Must be a valid Slack bot token (xoxb-...)" },
+    { key: "webhook_url", label: "Webhook URL (optional)", placeholder: "https://hooks.slack.com/services/...", required: false, type: "text" },
+  ],
+};
+
+const getProviderCredentials = (provider: string): CredentialField[] => {
+  const key = provider.trim().toLowerCase();
+  return PROVIDER_CREDENTIALS[key] ?? [
+    { key: "api_key", label: "API Key (optional)", placeholder: "Enter API key or token", required: false, type: "password" },
+  ];
+};
+
 const PROVIDER_URLS: Record<string, string> = {
   supabase: "https://supabase.com",
   github: "https://github.com",
@@ -97,14 +147,13 @@ const Integrations = () => {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [logs, setLogs] = useState<IntegrationLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [keyValid, setKeyValid] = useState<boolean | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const isNew = searchParams.get("new") === "true";
 
@@ -125,43 +174,72 @@ const Integrations = () => {
     fetchIntegrations();
   }, [user, classId]);
 
-  // Validate Opix API key on change
+  // Validate credentials on change
+  const credentialFields = getProviderCredentials(provider);
+  
   useEffect(() => {
-    if (!isOpixProvider(provider) || !apiKey.trim()) {
-      setKeyValid(null);
+    if (!provider.trim()) {
+      setFieldErrors({});
       return;
     }
-    setValidating(true);
+    const errors: Record<string, string | null> = {};
     const timeout = setTimeout(() => {
-      setKeyValid(validateOpixKey(apiKey.trim()));
-      setValidating(false);
+      for (const field of credentialFields) {
+        const val = (credentials[field.key] ?? "").trim();
+        if (val && field.validate) {
+          errors[field.key] = field.validate(val);
+        } else {
+          errors[field.key] = null;
+        }
+      }
+      setFieldErrors(errors);
     }, 400);
     return () => clearTimeout(timeout);
-  }, [apiKey, provider]);
+  }, [credentials, provider]);
+
+  const allRequiredValid = () => {
+    const fields = getProviderCredentials(provider);
+    for (const field of fields) {
+      const val = (credentials[field.key] ?? "").trim();
+      if (field.required && !val) return false;
+      if (val && field.validate && field.validate(val) !== null) return false;
+    }
+    return true;
+  };
 
   const handleAdd = async () => {
     if (!provider.trim() || !user || !classId) return;
 
-    // Opix-specific validation
-    if (isOpixProvider(provider)) {
-      if (!apiKey.trim()) {
-        toast.error("Opix requires an API key (opx_...)");
+    const fields = getProviderCredentials(provider);
+    // Validate required fields
+    for (const field of fields) {
+      const val = (credentials[field.key] ?? "").trim();
+      if (field.required && !val) {
+        toast.error(`${field.label} is required`);
         return;
       }
-      if (!validateOpixKey(apiKey.trim())) {
-        toast.error("Invalid Opix key. Must start with opx_ and be at least 16 characters.");
-        return;
+      if (val && field.validate) {
+        const err = field.validate(val);
+        if (err) {
+          toast.error(err);
+          return;
+        }
       }
     }
 
     setAdding(true);
     const integrationUrl = getProviderUrl(provider);
 
+    // Store all credentials as JSON in api_key_encrypted
+    const credentialData = Object.fromEntries(
+      Object.entries(credentials).filter(([_, v]) => v.trim())
+    );
+
     const { data, error } = await supabase.from("integrations").insert({
       user_id: user.id,
       class_id: classId,
       provider: provider.trim(),
-      api_key_encrypted: apiKey.trim() || null,
+      api_key_encrypted: Object.keys(credentialData).length > 0 ? JSON.stringify(credentialData) : null,
       url: integrationUrl,
     }).select().single();
 
@@ -171,19 +249,18 @@ const Integrations = () => {
       return;
     }
 
-    // Log the creation event
     if (data) {
       await logIntegrationEvent(data.id, "created", {
         provider: provider.trim(),
-        has_api_key: !!apiKey.trim(),
+        credentials_provided: Object.keys(credentialData),
         url: integrationUrl,
       });
     }
 
     toast.success("Integration added!");
     setProvider("");
-    setApiKey("");
-    setKeyValid(null);
+    setCredentials({});
+    setFieldErrors({});
     setSearchParams({});
     fetchIntegrations();
     setAdding(false);
@@ -289,56 +366,52 @@ const Integrations = () => {
                 </p>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">
-                API Key {isOpixProvider(provider) ? "(required — opx_...)" : "(optional)"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={isOpixProvider(provider) ? "opx_xxxxxxxxxxxxxxxx" : "Enter API key"}
-                  className={
-                    isOpixProvider(provider) && apiKey.trim()
-                      ? keyValid === true
-                        ? "border-green-500 pr-10"
-                        : keyValid === false
-                        ? "border-destructive pr-10"
-                        : "pr-10"
-                      : ""
-                  }
-                />
-                {isOpixProvider(provider) && apiKey.trim() && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {validating ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : keyValid ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    )}
-                  </span>
+            {provider.trim() && credentialFields.map((field) => (
+              <div key={field.key} className="space-y-2">
+                <Label htmlFor={field.key}>
+                  {field.label} {field.required && "*"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id={field.key}
+                    type={field.type ?? "text"}
+                    value={credentials[field.key] ?? ""}
+                    onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    className={
+                      (credentials[field.key] ?? "").trim() && field.validate
+                        ? fieldErrors[field.key] === null
+                          ? "border-primary pr-10"
+                          : fieldErrors[field.key]
+                          ? "border-destructive pr-10"
+                          : "pr-10"
+                        : ""
+                    }
+                  />
+                  {(credentials[field.key] ?? "").trim() && field.validate && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {fieldErrors[field.key] === null ? (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      ) : fieldErrors[field.key] ? (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </span>
+                  )}
+                </div>
+                {fieldErrors[field.key] && (
+                  <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
                 )}
               </div>
-              {isOpixProvider(provider) && apiKey.trim() && keyValid === false && (
-                <p className="text-xs text-destructive">
-                  Key must start with opx_ and be at least 16 characters
-                </p>
-              )}
-            </div>
+            ))}
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => { setSearchParams({}); setKeyValid(null); }}>
+              <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
                 Cancel
               </Button>
               <Button
                 onClick={handleAdd}
-                disabled={
-                  !provider.trim() ||
-                  adding ||
-                  (isOpixProvider(provider) && keyValid !== true)
-                }
+                disabled={!provider.trim() || adding || !allRequiredValid()}
               >
                 {adding ? "Adding..." : "Add Integration"}
               </Button>
