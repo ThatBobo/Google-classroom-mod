@@ -147,14 +147,13 @@ const Integrations = () => {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [logs, setLogs] = useState<IntegrationLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [keyValid, setKeyValid] = useState<boolean | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const isNew = searchParams.get("new") === "true";
 
