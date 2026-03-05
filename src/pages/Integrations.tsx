@@ -174,43 +174,72 @@ const Integrations = () => {
     fetchIntegrations();
   }, [user, classId]);
 
-  // Validate Opix API key on change
+  // Validate credentials on change
+  const credentialFields = getProviderCredentials(provider);
+  
   useEffect(() => {
-    if (!isOpixProvider(provider) || !apiKey.trim()) {
-      setKeyValid(null);
+    if (!provider.trim()) {
+      setFieldErrors({});
       return;
     }
-    setValidating(true);
+    const errors: Record<string, string | null> = {};
     const timeout = setTimeout(() => {
-      setKeyValid(validateOpixKey(apiKey.trim()));
-      setValidating(false);
+      for (const field of credentialFields) {
+        const val = (credentials[field.key] ?? "").trim();
+        if (val && field.validate) {
+          errors[field.key] = field.validate(val);
+        } else {
+          errors[field.key] = null;
+        }
+      }
+      setFieldErrors(errors);
     }, 400);
     return () => clearTimeout(timeout);
-  }, [apiKey, provider]);
+  }, [credentials, provider]);
+
+  const allRequiredValid = () => {
+    const fields = getProviderCredentials(provider);
+    for (const field of fields) {
+      const val = (credentials[field.key] ?? "").trim();
+      if (field.required && !val) return false;
+      if (val && field.validate && field.validate(val) !== null) return false;
+    }
+    return true;
+  };
 
   const handleAdd = async () => {
     if (!provider.trim() || !user || !classId) return;
 
-    // Opix-specific validation
-    if (isOpixProvider(provider)) {
-      if (!apiKey.trim()) {
-        toast.error("Opix requires an API key (opx_...)");
+    const fields = getProviderCredentials(provider);
+    // Validate required fields
+    for (const field of fields) {
+      const val = (credentials[field.key] ?? "").trim();
+      if (field.required && !val) {
+        toast.error(`${field.label} is required`);
         return;
       }
-      if (!validateOpixKey(apiKey.trim())) {
-        toast.error("Invalid Opix key. Must start with opx_ and be at least 16 characters.");
-        return;
+      if (val && field.validate) {
+        const err = field.validate(val);
+        if (err) {
+          toast.error(err);
+          return;
+        }
       }
     }
 
     setAdding(true);
     const integrationUrl = getProviderUrl(provider);
 
+    // Store all credentials as JSON in api_key_encrypted
+    const credentialData = Object.fromEntries(
+      Object.entries(credentials).filter(([_, v]) => v.trim())
+    );
+
     const { data, error } = await supabase.from("integrations").insert({
       user_id: user.id,
       class_id: classId,
       provider: provider.trim(),
-      api_key_encrypted: apiKey.trim() || null,
+      api_key_encrypted: Object.keys(credentialData).length > 0 ? JSON.stringify(credentialData) : null,
       url: integrationUrl,
     }).select().single();
 
@@ -220,19 +249,18 @@ const Integrations = () => {
       return;
     }
 
-    // Log the creation event
     if (data) {
       await logIntegrationEvent(data.id, "created", {
         provider: provider.trim(),
-        has_api_key: !!apiKey.trim(),
+        credentials_provided: Object.keys(credentialData),
         url: integrationUrl,
       });
     }
 
     toast.success("Integration added!");
     setProvider("");
-    setApiKey("");
-    setKeyValid(null);
+    setCredentials({});
+    setFieldErrors({});
     setSearchParams({});
     fetchIntegrations();
     setAdding(false);
