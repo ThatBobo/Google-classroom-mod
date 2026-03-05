@@ -15,7 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, ScrollText, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Integration {
@@ -26,7 +32,12 @@ interface Integration {
   created_at: string;
 }
 
-// Predefined URLs for known providers (Opix has no URL)
+interface IntegrationLog {
+  id: string;
+  log_data: Record<string, any>;
+  created_at: string;
+}
+
 const PROVIDER_URLS: Record<string, string> = {
   supabase: "https://supabase.com",
   github: "https://github.com",
@@ -53,21 +64,47 @@ const PROVIDER_URLS: Record<string, string> = {
 
 const getProviderUrl = (name: string): string | null => {
   const key = name.trim().toLowerCase();
-  if (PROVIDER_URLS[key]) return PROVIDER_URLS[key];
   return PROVIDER_URLS[key] ?? null;
+};
+
+const isOpixProvider = (name: string) => name.trim().toLowerCase() === "opix";
+
+const validateOpixKey = (key: string): boolean => {
+  // Opix keys must start with opx_ and be at least 16 chars
+  return key.startsWith("opx_") && key.length >= 16;
+};
+
+const logIntegrationEvent = async (
+  integrationId: string,
+  eventType: string,
+  details: Record<string, any> = {}
+) => {
+  await supabase.from("integration_logs").insert({
+    integration_id: integrationId,
+    log_data: {
+      event: eventType,
+      timestamp: new Date().toISOString(),
+      ...details,
+    },
+  });
 };
 
 const Integrations = () => {
   const { id: classId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [adding, setAdding] = useState(false);
-  
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
+  const [logs, setLogs] = useState<IntegrationLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [keyValid, setKeyValid] = useState<boolean | null>(null);
 
   const isNew = searchParams.get("new") === "true";
 
@@ -84,24 +121,49 @@ const Integrations = () => {
     setLoading(false);
   };
 
-
   useEffect(() => {
     fetchIntegrations();
   }, [user, classId]);
 
+  // Validate Opix API key on change
+  useEffect(() => {
+    if (!isOpixProvider(provider) || !apiKey.trim()) {
+      setKeyValid(null);
+      return;
+    }
+    setValidating(true);
+    const timeout = setTimeout(() => {
+      setKeyValid(validateOpixKey(apiKey.trim()));
+      setValidating(false);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [apiKey, provider]);
+
   const handleAdd = async () => {
     if (!provider.trim() || !user || !classId) return;
-    setAdding(true);
 
+    // Opix-specific validation
+    if (isOpixProvider(provider)) {
+      if (!apiKey.trim()) {
+        toast.error("Opix requires an API key (opx_...)");
+        return;
+      }
+      if (!validateOpixKey(apiKey.trim())) {
+        toast.error("Invalid Opix key. Must start with opx_ and be at least 16 characters.");
+        return;
+      }
+    }
+
+    setAdding(true);
     const integrationUrl = getProviderUrl(provider);
 
-    const { error } = await supabase.from("integrations").insert({
+    const { data, error } = await supabase.from("integrations").insert({
       user_id: user.id,
       class_id: classId,
       provider: provider.trim(),
       api_key_encrypted: apiKey.trim() || null,
       url: integrationUrl,
-    });
+    }).select().single();
 
     if (error) {
       toast.error("Failed to add integration");
@@ -109,15 +171,28 @@ const Integrations = () => {
       return;
     }
 
+    // Log the creation event
+    if (data) {
+      await logIntegrationEvent(data.id, "created", {
+        provider: provider.trim(),
+        has_api_key: !!apiKey.trim(),
+        url: integrationUrl,
+      });
+    }
+
     toast.success("Integration added!");
     setProvider("");
     setApiKey("");
-    setSearchParams({}); // Remove ?new=true
+    setKeyValid(null);
+    setSearchParams({});
     fetchIntegrations();
     setAdding(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, providerName: string) => {
+    // Log before deleting
+    await logIntegrationEvent(id, "deleted", { provider: providerName });
+
     const { error } = await supabase.from("integrations").delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else {
@@ -126,14 +201,52 @@ const Integrations = () => {
     }
   };
 
-  const handleToggleStatus = async (id: string, current: string) => {
+  const handleToggleStatus = async (id: string, current: string, providerName: string) => {
     const newStatus = current === "active" ? "inactive" : "active";
     const { error } = await supabase
       .from("integrations")
       .update({ status: newStatus })
       .eq("id", id);
-    if (error) toast.error("Failed to update");
-    else fetchIntegrations();
+
+    if (error) {
+      toast.error("Failed to update");
+    } else {
+      await logIntegrationEvent(id, "status_changed", {
+        provider: providerName,
+        old_status: current,
+        new_status: newStatus,
+      });
+      fetchIntegrations();
+    }
+  };
+
+  const openLogs = async (integration: Integration) => {
+    setSelectedIntegration(integration);
+    setLogsDialogOpen(true);
+    setLogsLoading(true);
+
+    const { data } = await supabase
+      .from("integration_logs")
+      .select("id, log_data, created_at")
+      .eq("integration_id", integration.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setLogs((data as IntegrationLog[]) ?? []);
+    setLogsLoading(false);
+  };
+
+  const getEventIcon = (event: string) => {
+    switch (event) {
+      case "created":
+        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+      case "deleted":
+        return <XCircle className="h-3.5 w-3.5 text-destructive" />;
+      case "status_changed":
+        return <RefreshCw className="h-3.5 w-3.5 text-primary" />;
+      default:
+        return <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />;
+    }
   };
 
   return (
@@ -157,7 +270,6 @@ const Integrations = () => {
 
       <main className="mx-auto max-w-4xl px-4 py-6">
         {isNew ? (
-          /* New integration form */
           <Card className="mx-auto max-w-lg p-6 space-y-5">
             <h2 className="font-display text-xl font-bold text-foreground">Add Integration</h2>
             <div className="space-y-2">
@@ -178,20 +290,56 @@ const Integrations = () => {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key (optional)</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter API key"
-              />
+              <Label htmlFor="apiKey">
+                API Key {isOpixProvider(provider) ? "(required — opx_...)" : "(optional)"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="apiKey"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={isOpixProvider(provider) ? "opx_xxxxxxxxxxxxxxxx" : "Enter API key"}
+                  className={
+                    isOpixProvider(provider) && apiKey.trim()
+                      ? keyValid === true
+                        ? "border-green-500 pr-10"
+                        : keyValid === false
+                        ? "border-destructive pr-10"
+                        : "pr-10"
+                      : ""
+                  }
+                />
+                {isOpixProvider(provider) && apiKey.trim() && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {validating ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : keyValid ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
+                  </span>
+                )}
+              </div>
+              {isOpixProvider(provider) && apiKey.trim() && keyValid === false && (
+                <p className="text-xs text-destructive">
+                  Key must start with opx_ and be at least 16 characters
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setSearchParams({})}>
+              <Button variant="ghost" onClick={() => { setSearchParams({}); setKeyValid(null); }}>
                 Cancel
               </Button>
-              <Button onClick={handleAdd} disabled={!provider.trim() || adding}>
+              <Button
+                onClick={handleAdd}
+                disabled={
+                  !provider.trim() ||
+                  adding ||
+                  (isOpixProvider(provider) && keyValid !== true)
+                }
+              >
                 {adding ? "Adding..." : "Add Integration"}
               </Button>
             </div>
@@ -253,7 +401,15 @@ const Integrations = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleStatus(integ.id, integ.status)}
+                          onClick={() => openLogs(integ)}
+                          title="View logs"
+                        >
+                          <ScrollText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleStatus(integ.id, integ.status, integ.provider)}
                           title={integ.status === "active" ? "Deactivate" : "Activate"}
                         >
                           <RefreshCw className="h-4 w-4" />
@@ -262,7 +418,7 @@ const Integrations = () => {
                           variant="ghost"
                           size="icon"
                           className="text-destructive"
-                          onClick={() => handleDelete(integ.id)}
+                          onClick={() => handleDelete(integ.id, integ.provider)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -275,6 +431,56 @@ const Integrations = () => {
           </div>
         )}
       </main>
+
+      {/* Logs Dialog */}
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <ScrollText className="h-5 w-5 text-primary" />
+              {selectedIntegration?.provider} Logs
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto space-y-2 pt-2">
+            {logsLoading ? (
+              <p className="py-4 text-center text-muted-foreground">Loading logs...</p>
+            ) : logs.length === 0 ? (
+              <p className="py-4 text-center text-muted-foreground">No logs yet</p>
+            ) : (
+              logs.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-start gap-3 rounded-lg border border-border p-3"
+                >
+                  <div className="mt-0.5">
+                    {getEventIcon(log.log_data?.event)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground capitalize">
+                        {log.log_data?.event ?? "unknown"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {log.log_data?.old_status && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {log.log_data.old_status} → {log.log_data.new_status}
+                      </p>
+                    )}
+                    {log.log_data?.has_api_key !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        API key: {log.log_data.has_api_key ? "provided" : "none"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
