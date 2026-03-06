@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, ScrollText, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, ScrollText, CheckCircle2, XCircle, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Integration {
