@@ -55,8 +55,11 @@ const PROVIDER_CREDENTIALS: Record<string, CredentialField[]> = {
       validate: (v) => v.startsWith("eyJ") && v.length > 30 ? null : "Must be a valid JWT anon key" },
   ],
   opix: [
+    { key: "client_id", label: "Client ID", placeholder: "Paste Client ID from Opix Authorizations", required: true, type: "text",
+      validate: (v) => v.length >= 10 ? null : "Must be a valid Client ID from Opix Authorizations" },
     { key: "api_key", label: "API Key", placeholder: "opx_xxxxxxxxxxxxxxxx", required: true, type: "password",
       validate: (v) => v.startsWith("opx_") && v.length >= 16 ? null : "Must start with opx_ and be at least 16 characters" },
+    { key: "redirect_uri", label: "Redirect URI (optional)", placeholder: "https://yourapp.com/callback", required: false, type: "text" },
   ],
   github: [
     { key: "access_token", label: "Personal Access Token", placeholder: "ghp_xxxxxxxxxxxxxxxx", required: true, type: "password",
