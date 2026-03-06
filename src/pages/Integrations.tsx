@@ -400,56 +400,104 @@ const Integrations = () => {
                 </p>
               </div>
             )}
-            {provider.trim() && credentialFields.map((field) => (
-              <div key={field.key} className="space-y-2">
-                <Label htmlFor={field.key}>
-                  {field.label} {field.required && "*"}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id={field.key}
-                    type={field.type ?? "text"}
-                    value={credentials[field.key] ?? ""}
-                    onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    className={
-                      (credentials[field.key] ?? "").trim() && field.validate
-                        ? fieldErrors[field.key] === null
-                          ? "border-primary pr-10"
-                          : fieldErrors[field.key]
-                          ? "border-destructive pr-10"
-                          : "pr-10"
-                        : ""
-                    }
-                  />
-                  {(credentials[field.key] ?? "").trim() && field.validate && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {fieldErrors[field.key] === null ? (
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                      ) : fieldErrors[field.key] ? (
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      )}
-                    </span>
-                  )}
+
+            {/* OAuth providers get a Connect button instead of credential fields */}
+            {provider.trim() && isOAuthProvider(provider) ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">OAuth Authorization</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click "Connect" to securely authorize with {provider}. You'll be redirected to approve access, then returned here automatically.
+                  </p>
                 </div>
-                {fieldErrors[field.key] && (
-                  <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
-                )}
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => { setSearchParams({}); setCredentials({}); setFieldErrors({}); }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    const key = provider.trim().toLowerCase();
+                    const oauthConfig = OAUTH_PROVIDERS[key];
+                    if (!oauthConfig) return;
+
+                    const redirectUri = `${window.location.origin}/oauth/callback`;
+                    const state = btoa(JSON.stringify({
+                      provider: key,
+                      class_id: classId,
+                      redirect_uri: redirectUri,
+                    }));
+
+                    const params = new URLSearchParams({
+                      client_id: `CONFIGURE_${key.toUpperCase()}_CLIENT_ID`,
+                      redirect_uri: redirectUri,
+                      scope: oauthConfig.scopes.join(" "),
+                      response_type: "code",
+                      state,
+                    });
+
+                    window.location.href = `${oauthConfig.authUrl}?${params}`;
+                  }}>
+                    <Link2 className="mr-1 h-4 w-4" />
+                    Connect {provider}
+                  </Button>
+                </div>
               </div>
-            ))}
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAdd}
-                disabled={!provider.trim() || adding || !allRequiredValid()}
-              >
-                {adding ? "Adding..." : "Add Integration"}
-              </Button>
-            </div>
+            ) : (
+              <>
+                {provider.trim() && credentialFields.map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={field.key}>
+                      {field.label} {field.required && "*"}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id={field.key}
+                        type={field.type ?? "text"}
+                        value={credentials[field.key] ?? ""}
+                        onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        className={
+                          (credentials[field.key] ?? "").trim() && field.validate
+                            ? fieldErrors[field.key] === null
+                              ? "border-primary pr-10"
+                              : fieldErrors[field.key]
+                              ? "border-destructive pr-10"
+                              : "pr-10"
+                            : ""
+                        }
+                      />
+                      {(credentials[field.key] ?? "").trim() && field.validate && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {fieldErrors[field.key] === null ? (
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                          ) : fieldErrors[field.key] ? (
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          ) : (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {fieldErrors[field.key] && (
+                      <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
+                    )}
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAdd}
+                    disabled={!provider.trim() || adding || !allRequiredValid()}
+                  >
+                    {adding ? "Adding..." : "Add Integration"}
+                  </Button>
+                </div>
+              </>
+            )}
           </Card>
         ) : loading ? (
           <p className="py-8 text-center text-muted-foreground">Loading...</p>
