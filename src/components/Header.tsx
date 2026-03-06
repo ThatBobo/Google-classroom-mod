@@ -19,7 +19,7 @@ interface HeaderProps {
 }
 
 const NAV_ITEMS = [
-  { path: "/", label: "Classes", icon: Home },
+  { path: "/h", label: "Classes", icon: Home },
   { path: "/calendar", label: "Calendar", icon: Calendar },
   { path: "/todo", label: "To-do", icon: CheckSquare },
   { path: "/archived", label: "Archived", icon: Archive },
