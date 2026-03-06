@@ -14,6 +14,7 @@ import Archived from "./pages/Archived";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
 import NotFound from "./pages/NotFound";
+import OAuthCallback from "./pages/OAuthCallback";
 
 const queryClient = new QueryClient();
 
