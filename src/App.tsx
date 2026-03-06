@@ -39,6 +39,7 @@ const App = () => (
             <Route path="/archived" element={<P><Archived /></P>} />
             <Route path="/settings" element={<P><Settings /></P>} />
             <Route path="/class/:id/integrations" element={<P><Integrations /></P>} />
+            <Route path="/oauth/callback" element={<P><OAuthCallback /></P>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
