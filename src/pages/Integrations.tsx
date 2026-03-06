@@ -350,7 +350,8 @@ const Integrations = () => {
   const getEventIcon = (event: string) => {
     switch (event) {
       case "created":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+      case "oauth_connected":
+        return <CheckCircle2 className="h-3.5 w-3.5 text-primary" />;
       case "deleted":
         return <XCircle className="h-3.5 w-3.5 text-destructive" />;
       case "status_changed":
