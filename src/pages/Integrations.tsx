@@ -91,6 +91,38 @@ const getProviderCredentials = (provider: string): CredentialField[] => {
   ];
 };
 
+// OAuth provider configurations (client-side — only public info)
+type OAuthProviderConfig = {
+  authUrl: string;
+  scopes: string[];
+};
+
+const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  github: {
+    authUrl: "https://github.com/login/oauth/authorize",
+    scopes: ["repo", "user"],
+  },
+  slack: {
+    authUrl: "https://slack.com/oauth/v2/authorize",
+    scopes: ["chat:write", "channels:read"],
+  },
+  discord: {
+    authUrl: "https://discord.com/api/oauth2/authorize",
+    scopes: ["identify", "guilds"],
+  },
+  notion: {
+    authUrl: "https://api.notion.com/v1/oauth/authorize",
+    scopes: [],
+  },
+  google: {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    scopes: ["https://www.googleapis.com/auth/userinfo.email"],
+  },
+};
+
+const isOAuthProvider = (provider: string): boolean =>
+  Object.keys(OAUTH_PROVIDERS).includes(provider.trim().toLowerCase());
+
 const PROVIDER_URLS: Record<string, string> = {
   supabase: "https://supabase.com",
   github: "https://github.com",
@@ -123,7 +155,6 @@ const getProviderUrl = (name: string): string | null => {
 const isOpixProvider = (name: string) => name.trim().toLowerCase() === "opix";
 
 const validateOpixKey = (key: string): boolean => {
-  // Opix keys must start with opx_ and be at least 16 chars
   return key.startsWith("opx_") && key.length >= 16;
 };
 
