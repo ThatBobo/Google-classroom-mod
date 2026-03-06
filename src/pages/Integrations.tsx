@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, ScrollText, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Plug, Plus, Trash2, RefreshCw, ArrowLeft, ExternalLink, ScrollText, CheckCircle2, XCircle, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Integration {
@@ -91,6 +91,38 @@ const getProviderCredentials = (provider: string): CredentialField[] => {
   ];
 };
 
+// OAuth provider configurations (client-side — only public info)
+type OAuthProviderConfig = {
+  authUrl: string;
+  scopes: string[];
+};
+
+const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  github: {
+    authUrl: "https://github.com/login/oauth/authorize",
+    scopes: ["repo", "user"],
+  },
+  slack: {
+    authUrl: "https://slack.com/oauth/v2/authorize",
+    scopes: ["chat:write", "channels:read"],
+  },
+  discord: {
+    authUrl: "https://discord.com/api/oauth2/authorize",
+    scopes: ["identify", "guilds"],
+  },
+  notion: {
+    authUrl: "https://api.notion.com/v1/oauth/authorize",
+    scopes: [],
+  },
+  google: {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    scopes: ["https://www.googleapis.com/auth/userinfo.email"],
+  },
+};
+
+const isOAuthProvider = (provider: string): boolean =>
+  Object.keys(OAUTH_PROVIDERS).includes(provider.trim().toLowerCase());
+
 const PROVIDER_URLS: Record<string, string> = {
   supabase: "https://supabase.com",
   github: "https://github.com",
@@ -123,7 +155,6 @@ const getProviderUrl = (name: string): string | null => {
 const isOpixProvider = (name: string) => name.trim().toLowerCase() === "opix";
 
 const validateOpixKey = (key: string): boolean => {
-  // Opix keys must start with opx_ and be at least 16 chars
   return key.startsWith("opx_") && key.length >= 16;
 };
 
@@ -319,7 +350,8 @@ const Integrations = () => {
   const getEventIcon = (event: string) => {
     switch (event) {
       case "created":
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+      case "oauth_connected":
+        return <CheckCircle2 className="h-3.5 w-3.5 text-primary" />;
       case "deleted":
         return <XCircle className="h-3.5 w-3.5 text-destructive" />;
       case "status_changed":
@@ -369,56 +401,104 @@ const Integrations = () => {
                 </p>
               </div>
             )}
-            {provider.trim() && credentialFields.map((field) => (
-              <div key={field.key} className="space-y-2">
-                <Label htmlFor={field.key}>
-                  {field.label} {field.required && "*"}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id={field.key}
-                    type={field.type ?? "text"}
-                    value={credentials[field.key] ?? ""}
-                    onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    className={
-                      (credentials[field.key] ?? "").trim() && field.validate
-                        ? fieldErrors[field.key] === null
-                          ? "border-primary pr-10"
-                          : fieldErrors[field.key]
-                          ? "border-destructive pr-10"
-                          : "pr-10"
-                        : ""
-                    }
-                  />
-                  {(credentials[field.key] ?? "").trim() && field.validate && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {fieldErrors[field.key] === null ? (
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                      ) : fieldErrors[field.key] ? (
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      )}
-                    </span>
-                  )}
+
+            {/* OAuth providers get a Connect button instead of credential fields */}
+            {provider.trim() && isOAuthProvider(provider) ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">OAuth Authorization</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click "Connect" to securely authorize with {provider}. You'll be redirected to approve access, then returned here automatically.
+                  </p>
                 </div>
-                {fieldErrors[field.key] && (
-                  <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
-                )}
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => { setSearchParams({}); setCredentials({}); setFieldErrors({}); }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    const key = provider.trim().toLowerCase();
+                    const oauthConfig = OAUTH_PROVIDERS[key];
+                    if (!oauthConfig) return;
+
+                    const redirectUri = `${window.location.origin}/oauth/callback`;
+                    const state = btoa(JSON.stringify({
+                      provider: key,
+                      class_id: classId,
+                      redirect_uri: redirectUri,
+                    }));
+
+                    const params = new URLSearchParams({
+                      client_id: `CONFIGURE_${key.toUpperCase()}_CLIENT_ID`,
+                      redirect_uri: redirectUri,
+                      scope: oauthConfig.scopes.join(" "),
+                      response_type: "code",
+                      state,
+                    });
+
+                    window.location.href = `${oauthConfig.authUrl}?${params}`;
+                  }}>
+                    <Link2 className="mr-1 h-4 w-4" />
+                    Connect {provider}
+                  </Button>
+                </div>
               </div>
-            ))}
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAdd}
-                disabled={!provider.trim() || adding || !allRequiredValid()}
-              >
-                {adding ? "Adding..." : "Add Integration"}
-              </Button>
-            </div>
+            ) : (
+              <>
+                {provider.trim() && credentialFields.map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={field.key}>
+                      {field.label} {field.required && "*"}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id={field.key}
+                        type={field.type ?? "text"}
+                        value={credentials[field.key] ?? ""}
+                        onChange={(e) => setCredentials(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        className={
+                          (credentials[field.key] ?? "").trim() && field.validate
+                            ? fieldErrors[field.key] === null
+                              ? "border-primary pr-10"
+                              : fieldErrors[field.key]
+                              ? "border-destructive pr-10"
+                              : "pr-10"
+                            : ""
+                        }
+                      />
+                      {(credentials[field.key] ?? "").trim() && field.validate && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {fieldErrors[field.key] === null ? (
+                            <CheckCircle2 className="h-4 w-4 text-primary" />
+                          ) : fieldErrors[field.key] ? (
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          ) : (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {fieldErrors[field.key] && (
+                      <p className="text-xs text-destructive">{fieldErrors[field.key]}</p>
+                    )}
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => { setSearchParams({}); setFieldErrors({}); setCredentials({}); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAdd}
+                    disabled={!provider.trim() || adding || !allRequiredValid()}
+                  >
+                    {adding ? "Adding..." : "Add Integration"}
+                  </Button>
+                </div>
+              </>
+            )}
           </Card>
         ) : loading ? (
           <p className="py-8 text-center text-muted-foreground">Loading...</p>

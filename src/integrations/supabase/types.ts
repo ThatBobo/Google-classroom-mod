@@ -227,37 +227,49 @@ export type Database = {
       }
       integrations: {
         Row: {
+          access_token: string | null
           api_key_encrypted: string | null
+          auth_method: string
           class_id: string | null
           created_at: string
           id: string
           owner: string | null
           provider: string
+          refresh_token: string | null
           status: string
+          token_expires_at: string | null
           updated_at: string
           url: string | null
           user_id: string
         }
         Insert: {
+          access_token?: string | null
           api_key_encrypted?: string | null
+          auth_method?: string
           class_id?: string | null
           created_at?: string
           id?: string
           owner?: string | null
           provider: string
+          refresh_token?: string | null
           status?: string
+          token_expires_at?: string | null
           updated_at?: string
           url?: string | null
           user_id: string
         }
         Update: {
+          access_token?: string | null
           api_key_encrypted?: string | null
+          auth_method?: string
           class_id?: string | null
           created_at?: string
           id?: string
           owner?: string | null
           provider?: string
+          refresh_token?: string | null
           status?: string
+          token_expires_at?: string | null
           updated_at?: string
           url?: string | null
           user_id?: string
